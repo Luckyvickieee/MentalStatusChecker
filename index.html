@@ -52,6 +52,19 @@
             font-size: 1.1rem;
         }
         
+        .history-btn {
+            position: absolute;
+            top: 20px;
+            right: 0;
+            background: var(--info-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
         .dashboard {
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -820,12 +833,17 @@
         const state = {
             currentStep: 1,
             stuckPoints: [],
+            concerns: [],
+            
             // 从localStorage加载数据
             loadData: function() {
                 try {
                     const savedData = localStorage.getItem('emotionDecomposerData');
                     if (savedData) {
-                        this.stuckPoints = JSON.parse(savedData);
+                        const parsedData = JSON.parse(savedData);
+                        this.stuckPoints = parsedData.stuckPoints || [];
+                        this.concerns = parsedData.concerns || [];
+                        
                         // 确保日期对象正确转换
                         this.stuckPoints.forEach(point => {
                             if (point.createdAt && typeof point.createdAt === 'string') {
@@ -840,14 +858,20 @@
                     this.initSampleData();
                 }
             },
+            
             // 保存数据到localStorage
             saveData: function() {
                 try {
-                    localStorage.setItem('emotionDecomposerData', JSON.stringify(this.stuckPoints));
+                    const dataToSave = {
+                        stuckPoints: this.stuckPoints,
+                        concerns: this.concerns
+                    };
+                    localStorage.setItem('emotionDecomposerData', JSON.stringify(dataToSave));
                 } catch (e) {
                     console.error('保存数据失败:', e);
                 }
             },
+            
             // 初始化示例数据
             initSampleData: function() {
                 if (this.stuckPoints.length === 0) {
@@ -889,22 +913,47 @@
                     this.saveData();
                 }
             },
+            
             // 获取未解决的卡点
             getUnsolvedPoints: function() {
                 return this.stuckPoints.filter(point => point.status !== 'solved');
             },
+            
             // 获取本周待办卡点
             getThisWeekPoints: function() {
                 return this.stuckPoints.filter(point => 
                     point.status !== 'solved' && point.scheduledDay
                 );
             },
+            
             // 获取下一个ID
             getNextId: function() {
                 return this.stuckPoints.length > 0 ? 
                     Math.max(...this.stuckPoints.map(p => p.id)) + 1 : 1;
             }
         };
+        
+        // 保存杂念信息
+        function saveConcern() {
+            const concernsTextarea = document.getElementById('otherConcerns');
+            const followupDate = document.getElementById('followupDate');
+            
+            if (concernsTextarea.value.trim() !== '') {
+                const newConcern = {
+                    id: state.concerns.length > 0 ? Math.max(...state.concerns.map(c => c.id)) + 1 : 1,
+                    text: concernsTextarea.value,
+                    followupDate: followupDate.value,
+                    createdAt: new Date()
+                };
+                
+                state.concerns.push(newConcern);
+                state.saveData();
+                
+                // 清空输入
+                concernsTextarea.value = '';
+                followupDate.value = '';
+            }
+        }
         
         // 初始化应用
         document.addEventListener('DOMContentLoaded', function() {
