@@ -40,7 +40,6 @@
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 1px solid #eaeaea;
-            position: relative;
         }
         
         h1 {
@@ -53,22 +52,9 @@
             font-size: 1.1rem;
         }
         
-        .history-btn {
-            position: absolute;
-            top: 20px;
-            right: 0;
-            background: var(--info-color);
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 2fr 1fr;
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -121,11 +107,6 @@
             padding: 2px 5px;
             border-radius: 2px;
             border-left: 2px solid var(--info-color);
-            cursor: pointer;
-        }
-        
-        .time-slot:hover {
-            background: #e1f0ff;
         }
         
         .stuck-point-item {
@@ -839,6 +820,34 @@
         const state = {
             currentStep: 1,
             stuckPoints: [],
+            // 从localStorage加载数据
+            loadData: function() {
+                try {
+                    const savedData = localStorage.getItem('emotionDecomposerData');
+                    if (savedData) {
+                        this.stuckPoints = JSON.parse(savedData);
+                        // 确保日期对象正确转换
+                        this.stuckPoints.forEach(point => {
+                            if (point.createdAt && typeof point.createdAt === 'string') {
+                                point.createdAt = new Date(point.createdAt);
+                            }
+                        });
+                    } else {
+                        this.initSampleData();
+                    }
+                } catch (e) {
+                    console.error('加载数据失败:', e);
+                    this.initSampleData();
+                }
+            },
+            // 保存数据到localStorage
+            saveData: function() {
+                try {
+                    localStorage.setItem('emotionDecomposerData', JSON.stringify(this.stuckPoints));
+                } catch (e) {
+                    console.error('保存数据失败:', e);
+                }
+            },
             // 初始化示例数据
             initSampleData: function() {
                 if (this.stuckPoints.length === 0) {
@@ -877,6 +886,7 @@
                             createdAt: new Date('2023-10-10')
                         }
                     ];
+                    this.saveData();
                 }
             },
             // 获取未解决的卡点
@@ -888,12 +898,17 @@
                 return this.stuckPoints.filter(point => 
                     point.status !== 'solved' && point.scheduledDay
                 );
+            },
+            // 获取下一个ID
+            getNextId: function() {
+                return this.stuckPoints.length > 0 ? 
+                    Math.max(...this.stuckPoints.map(p => p.id)) + 1 : 1;
             }
         };
         
         // 初始化应用
         document.addEventListener('DOMContentLoaded', function() {
-            state.initSampleData();
+            state.loadData();
             renderDashboard();
             
             // 情绪选择变化时显示/隐藏自定义输入
@@ -1139,6 +1154,9 @@
                     point.status = activeStatus.dataset.status;
                 }
                 
+                // 保存到localStorage
+                state.saveData();
+                
                 // 关闭模态框
                 closeEditModal();
                 
@@ -1154,6 +1172,7 @@
             const id = parseInt(document.getElementById('editPointId').value);
             if (confirm('确定要删除这个卡点吗？此操作不可撤销。')) {
                 state.stuckPoints = state.stuckPoints.filter(p => p.id !== id);
+                state.saveData(); // 保存更改
                 closeEditModal();
                 renderDashboard();
                 alert('卡点已删除！');
@@ -1248,16 +1267,26 @@
                     impact = activeImpact.dataset.impact;
                 }
                 
-                state.stuckPoints.push({
-                    id: state.stuckPoints.length > 0 ? 
-                        Math.max(...state.stuckPoints.map(p => p.id)) + 1 : 1,
+                // 创建新卡点
+                const newPoint = {
+                    id: state.getNextId(),
                     type: typeSelect.options[typeSelect.selectedIndex].text,
                     title: titleInput.value,
                     description: descriptionTextarea.value,
                     impact: impact,
+                    method: '',
                     status: 'unsolved',
+                    scheduledDay: '',
                     createdAt: new Date()
-                });
+                };
+                
+                state.stuckPoints.push(newPoint);
+                state.saveData(); // 保存到localStorage
+                
+                // 清空表单
+                typeSelect.value = '';
+                titleInput.value = '';
+                descriptionTextarea.value = '';
             }
         }
         
@@ -1318,7 +1347,7 @@
             const nextAction = document.getElementById('nextAction').value;
             
             if (keyInsight && nextAction) {
-                // 获取当前卡点
+                // 获取当前卡点（最后一个创建的）
                 const currentPoint = state.stuckPoints[state.stuckPoints.length - 1];
                 if (currentPoint) {
                     // 更新卡点信息
@@ -1331,9 +1360,12 @@
                         currentPoint.status = activeStatus.dataset.status === 'wrapping' ? 'solved' : 
                                              activeStatus.dataset.status === 'acting' ? 'solving' : 'unsolved';
                     }
+                    
+                    // 保存到localStorage
+                    state.saveData();
                 }
                 
-                alert('恭喜！您已经完成了情绪分解过程。');
+                alert('恭喜！您已经完成了情绪分解过程。新的卡点已添加到您的列表中。');
                 
                 // 返回首页
                 goToDashboard();
